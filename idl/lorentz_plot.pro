@@ -20,13 +20,27 @@ function dlg_interpB, r, bStruct, bMag = bMag
 end
 
 
-function dlg_vxB, r, v, bStruct
+function dlg_vxB, r_car, v_car, bStruct
 
-	b   = dlg_interpB ( r, bStruct, bMag = bMag )
+	xyMag	= sqrt ( r_car[0]^2 + r_car[1]^2 )
 
-	vxB_R	= v[1] * b[2] - v[2] * b[1]
-	vxB_phi	= -1.0 * ( v[0] * b[2] - v[2] * b[0] )
-	vxB_z	= v[0] * b[1] - v[1] * b[0]
+	cyl2car	= [	[ r_car[0] / xyMag, - r_car[1] / xyMag, 0 ], $
+				[ r_car[1] / xyMag, r_car[0] / xyMag, 0 ], $
+				[ 0,0,1] ] 
+
+	car2cyl	= invert ( cyl2car )
+
+	r_cyl	= [ [ sqrt ( r_car[0]^2+r_car[1]^2 ) ], $
+				[ aTan ( r_car[1], r_car[0] ) ], $
+				[ r_car[2] ] ]
+
+	b_cyl   = dlg_interpB ( r_cyl, bStruct, bMag = bMag )
+
+	b_car	= cyl2car ## b_cyl
+
+	vxB_R	= v_car[1] * b_car[2] - v_car[2] * b_car[1]
+	vxB_phi	= -1.0 * ( v_car[0] * b_car[2] - v_car[2] * b_car[0] )
+	vxB_z	= v_car[0] * b_car[1] - v_car[1] * b_car[0]
 
 	return, [ vxB_R, vxB_phi, vxB_z ]
 
@@ -150,15 +164,17 @@ pro lorentz_plot, $
 	
 	vR   	= 0e6
 	vz    	= 0e6
-	vPhi	= 3.1e7 
+	vPhi	= 5e6 
 
-	en_	= mi * ( vR^2 + vz^2 + vPhi^2 ) / 2.0 / 1.602e-19 * 1e-3; [keV]
+	vMag	= sqrt ( vR^2 + vz^2 + vPhi^2 )
+	en_	= mi * vMag^2 / 2.0 / 1.602e-19 * 1e-3; [keV]
 	print, en_, 'keV'
 	
-	dt = 0.02e-7 
-	
-	rr	= [ R, phi, z ]
-	vv	= [ vR, vPhi, vz ]
+	dt = 0.01e-7 
+	nSteps = 4000
+
+	rr_cyl	= transpose ( [ R, phi, z ] )
+	vv_cyl	= transpose ( [ vR, vPhi, vz ] )
 
 
 	;	Calculate the Guiding Center terms
@@ -301,36 +317,74 @@ pro lorentz_plot, $
 			mi : mi }
 
 
-	vv_array	= transpose ( vv )
-	rr_array	= transpose ( rr )
+	;	Here is the Lorentz eqn integration, done in 
+	;	cartesian coords so we have to rotate the b field
+	;	and velocity vectors to cartesian first, and also
+	;	convert the position 
+
+	cyl2car	=	[	[ cos ( phi ), sin ( phi ), 0 ], $
+					[ -sin ( phi ), cos ( phi ), 0 ], $
+					[ 0, 0, 1 ] ]
+
+	car2cyl	= invert ( cyl2car )
+
+	vv_car	= cyl2car ## vv_cyl 
+	
+	rr_car	= [ [ rr_cyl[0] * cos ( rr_cyl[1] ) ], $
+				[ rr_cyl[0] * sin ( rr_cyl[1] ) ], $
+				[ rr_cyl[2] ] ]
+ 
+	vv_car_array	= vv_car
+	rr_car_array	= rr_car
 	tt_array	= 0
 
-	nSteps = 5000
+	vv_cyl_array	= vv_cyl
+	rr_cyl_array	= rr_cyl
+	
 	for i = 0, nSteps - 2 do begin
 	
-		vxB	= dlg_vxB ( rr, vv, bStruct )
+		vxB	= dlg_vxB ( rr_car, vv_car, bStruct )
 		k1_v	= dt * q / mi * vxB	
-		k1_r	= dt * ( vv )
+		k1_r	= dt * ( vv_car )
 	
-		vxB	= dlg_vxB ( rr + k1_r / 2.0, vv + k1_v / 2.0, bStruct )
+		vxB	= dlg_vxB ( rr_car + k1_r / 2.0, vv_car + k1_v / 2.0, bStruct )
 		k2_v	= dt * q / mi * vxB	
-		k2_r	= dt * ( vv + k1_v / 2.0 )
+		k2_r	= dt * ( vv_car + k1_v / 2.0 )
 	
-		vxB	= dlg_vxB ( rr + k2_r / 2.0, vv + k2_v / 2.0, bStruct )
+		vxB	= dlg_vxB ( rr_car + k2_r / 2.0, vv_car + k2_v / 2.0, bStruct )
 		k3_v	= dt * q / mi * vxB	
-		k3_r	= dt * ( vv + k2_v / 2.0 )
+		k3_r	= dt * ( vv_car + k2_v / 2.0 )
 	
-		vxB	= dlg_vxB ( rr + k3_r, vv + k3_v, bStruct )
+		vxB	= dlg_vxB ( rr_car + k3_r, vv_car + k3_v, bStruct )
 		k4_v	= dt * q / mi * vxB	
-		k4_r	= dt * ( vv + k3_v )
+		k4_r	= dt * ( vv_car + k3_v )
 	
-		vv	= vv + ( k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v ) / 6.0
-		rr	= rr + ( k1_r + 2.0 * k2_r + 2.0 * k3_r + k4_r ) / 6.0
+		vv_car	= vv_car + ( k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v ) / 6.0
+		rr_car	= rr_car + ( k1_r + 2.0 * k2_r + 2.0 * k3_r + k4_r ) / 6.0
 	
-		vv_array	= [ vv_array, transpose ( vv ) ]
-		rr_array	= [ rr_array, transpose ( rr ) ]
+		vv_car_array	= [ vv_car_array, vv_car ]
+		rr_car_array	= [ rr_car_array, rr_car ]
 		tt_array	= [ tt_array, i * dt ]
+
+		xyMag	= sqrt ( rr_car[0]^2 + rr_car[1]^2 )
+
+		cyl2car	= [	[ rr_car[0] / xyMag, - rr_car[1] / xyMag, 0 ], $
+					[ rr_car[1] / xyMag, rr_car[0] / xyMag, 0 ], $
+					[ 0,0,1] ] 
+
+		car2cyl	= invert ( cyl2car )
+
+		vv_cyl	= car2cyl ## vv_car
+		rr_cyl	= [	[ xyMag ], $
+					[ aTan ( rr_car[1], rr_car[0] ) ], $
+					[ rr_car[2] ] ]
 	
+		vv_cyl_array	= [ vv_cyl_array, vv_cyl ]
+		rr_cyl_array	= [ rr_cyl_array, rr_cyl ]
+
+		print, sqrt ( vv_car[0]^2 + vv_car[1]^2 + vv_car[2]^2 )
+		print, sqrt ( vv_cyl[0]^2 + vv_cyl[1]^2 + vv_cyl[2]^2 )
+
 	endfor
 
 
@@ -340,39 +394,42 @@ pro lorentz_plot, $
 	;	Use magnetic field here for a guess at the 
 	;	gyro frequency, that's all
 	
-	pos	= [ rr[0], rr[1], rr[2] ]
+	pos	= rr_cyl
 	bHere_g   = dlg_interpB ( pos, bStruct, bMag = g_bMag )
 
 	omega0	= abs ( 2.0 * q * g_bMag / mi)
 	iiFirstGyration	= where ( tt_array lt 4.0 * !pi / omega0 )
 
-	r_gc	= mean ( rr_array[iiFirstGyration,0] )
-	phi_gc	= mean ( rr_array[iiFirstGyration,1] )
-	z_gc	= mean ( rr_array[iiFirstGyration,2] )
+	R_gc	= mean ( rr_cyl_array[iiFirstGyration,0] )
+	phi_gc	= mean ( rr_cyl_array[iiFirstGyration,1] )
+	z_gc	= mean ( rr_cyl_array[iiFirstGyration,2] )
 
-	phi_gc	= 0
+	;phi_gc = phi
 
 	pos	= [ R_gc, phi_gc, z_gc ]
 
-	bHere_gc   = dlg_interpB ( pos, bStruct, bMag = gc_bMag )
+	bHere_gc   = dlg_interpB ( pos, bStruct, bMag = bMag_gc )
 
-	gc_bR_B	= bHere_gc[0] / gc_bMag
-	gc_bPhi_B	= bHere_gc[1] / gc_bMag
-	gc_bz_B	= bHere_gc[2] / gc_bMag
+	;gc_bR_B	= bHere_gc[0] / gc_bMag
+	;gc_bPhi_B	= bHere_gc[1] / gc_bMag
+	;gc_bz_B	= bHere_gc[2] / gc_bMag
 
-	vMag_all	= sqrt ( vv_array[iiFirstGyration,0]^2 $
-					+ vv_array[iiFirstGyration,1]^2 $
-					+ vv_array[iiFirstGyration,2]^2 )
-	vPar_all	= ( vv_array[iiFirstGyration,0] * gc_bR_B $
-					+ vv_array[iiFirstGyration,1]* gc_bPhi_B $
-					+ vv_array[iiFirstGyration,2] * gc_bz_B )
-	vPer_all	= sqrt ( vMag_all^2 - vPar_all^2 )
-
-	vPar		= mean ( vPar_all ) 
-	vPer		= mean ( vPer_all )  
+	;vMag_all	= sqrt ( vv_cyl_array[iiFirstGyration,0]^2 $
+	;				+ vv_cyl_array[iiFirstGyration,1]^2 $
+	;				+ vv_cyl_array[iiFirstGyration,2]^2 )
+	;vPar_all	= ( vv_cyl_array[iiFirstGyration,0] * gc_bR_B $
+	;				+ vv_cyl_array[iiFirstGyration,1]* gc_bPhi_B $
+	;				+ vv_cyl_array[iiFirstGyration,2] * gc_bz_B )
+	;vPer_all	= sqrt ( vMag_all^2 - vPar_all^2 )
+;
+;	vPar		= mean ( vPar_all ) 
+;	vPer		= mean ( vPer_all )  
 	
-	print, sqrt ( vPer^2 + vPar^2 ), sqrt ( vR^2 + vPhi^2 + vz^2 )
+	vPar	= [ [vR],[vPhi],[vz] ] # bHere_gc / bMag_gc
+	vPer	= sqrt ( vMag^2 - vPar^2 )
 
+	print, sqrt ( vPer^2 + vPar^2 ), sqrt ( vR^2 + vPhi^2 + vz^2 )
+stop
 	;plots, rr_array[iiFirstGyration,0], rr_array[iiFirstGyration,2], color = 200, thick = 3.0
 	;plots, [r,r], [z-0.6,z+0.6], lineStyle = 1
 	;plots, [r-0.3,r+0.3], [z,z], lineStyle = 1
@@ -455,9 +512,9 @@ pro lorentz_plot, $
 
 	;	convert cylindrical coords to cartesian for plotting
 
-	x_lorentz	= rr_array[*,0] * cos ( rr_array[*,1] )
-	y_lorentz	= rr_array[*,0] * sin ( rr_array[*,1] )
-	z_lorentz	= rr_array[*,2]
+	x_lorentz	= rr_car_array[*,0]
+	y_lorentz	= rr_car_array[*,1]
+	z_lorentz	= rr_car_array[*,2]
 	
 	x_gc	= rTrack * cos ( phiTrack )
 	y_gc	= rTrack * sin ( phiTrack )
@@ -477,10 +534,10 @@ pro lorentz_plot, $
 		vert = fIndGen(nSteps)/nSteps*255, $
 		/zoom_on_resize, $
 		thick = 3, /iso
-	;iPlot, x_gc, y_gc, z_gc, /over, $
-	;	rgb_table = 3, $
-	;	vert = fIndGen(nSteps)/nSteps*255, $
-	;	thick = 3
+	iPlot, x_gc, y_gc, z_gc, /over, $
+		rgb_table = 3, $
+		vert = fIndGen(nSteps)/nSteps*255, $
+		thick = 3
 	iPlot, x_fl, y_fl, z_fl, /over, $
 		color = green, $
 		transp = 50, $
@@ -513,7 +570,6 @@ pro lorentz_plot, $
 	;endfor
 
 
-
 	iPlot, fl_rArray, fl_zArray, /iso, $
 		color = blue, $
 		transp = 70, $
@@ -522,7 +578,7 @@ pro lorentz_plot, $
 	iPlot, rTrack, zTrack, /over, $
 		color = red, $
 		thick = 2
-	iPlot, rr_array[*,0], rr_array[*,2], /over, $
+	iPlot, rr_cyl_array[*,0], rr_cyl_array[*,2], /over, $
 		color = green, $
 		thick = 2, $
 		trans = 50
