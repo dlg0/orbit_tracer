@@ -131,7 +131,7 @@ R   = fIndGen ( nW ) * rStep + rleft
 z   = fIndGen ( nH ) * zStep + zmid - zdim / 2.0
 
 fluxGrid    = fIndGen ( nW ) * fStep + simag
-stop
+
 ;	Adjust to an up down symmetric field
 
 ;psizr	= ( psizr + reverse ( psizr, 1 ) ) / 2.0

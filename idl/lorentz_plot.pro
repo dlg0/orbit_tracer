@@ -124,7 +124,12 @@ end
 
 pro lorentz_plot, $
 	curv = curv, $
-	grad = grad
+	grad = grad, $
+	noPlot = noPlot, $
+	vv_cyl = vv_cyl, $
+	rr_cyl = rr_cyl, $
+	nSteps = nSteps, $
+	x_gc = x_gc, y_gc = y_gc, z_gc = z_gc
 
 	eqdsk_fName	= '../eqdsk/g120740.00275.EFIT02.mds.uncorrected.qscale_1.00000'
 	eqdsk_fName	= '../eqdsk/g129x129_1051206002.01120'
@@ -141,24 +146,26 @@ pro lorentz_plot, $
 
 	q	= 1.602e-19
 	mi	= 1.672e-27 
-	
-	r   = 2.1
-	z   = 0.0 
-	phi	= 0.0
-	
-	vR   	= 0e6
-	vz    	= 0e6
-	vPhi	= 5e6 
 
-	vMag	= sqrt ( vR^2 + vz^2 + vPhi^2 )
+	if not keyword_set ( vv_cyl ) then begin	
+		r   = 2.1
+		z   = 0.0 
+		phi	= 0.0
+		
+		vR   	= 0e6
+		vz    	= 0e6
+		vPhi	= 5e6 
+
+		rr_cyl	= transpose ( [ R, phi, z ] )
+		vv_cyl	= transpose ( [ vR, vPhi, vz ] )
+	endif
+
+	vMag	= sqrt ( vv_cyl[0]^2 + vv_cyl[1]^2 + vv_cyl[2]^2 )
 	en_	= mi * vMag^2 / 2.0 / 1.602e-19 * 1e-3; [keV]
-	print, en_, 'keV'
+	print, en_, 'keV', rr_cyl[*], vv_cyl[*]
 	
 	dt = 0.01e-7 
-	nSteps = 4000
-
-	rr_cyl	= transpose ( [ R, phi, z ] )
-	vv_cyl	= transpose ( [ vR, vPhi, vz ] )
+	if not keyword_set ( nSteps ) then nSteps = 2000
 
 
 	;	Calculate the Guiding Center terms
@@ -306,14 +313,14 @@ pro lorentz_plot, $
 	;	and velocity vectors to cartesian first, and also
 	;	convert the position 
 
-	cyl2car	=	[	[ cos ( phi ), sin ( phi ), 0 ], $
-					[ -sin ( phi ), cos ( phi ), 0 ], $
+	cyl2car	=	[	[ cos ( rr_cyl[1] ), sin ( rr_cyl[1] ), 0 ], $
+					[ -sin ( rr_cyl[1] ), cos ( rr_cyl[1] ), 0 ], $
 					[ 0, 0, 1 ] ]
 
 	car2cyl	= invert ( cyl2car )
 
 	vv_car	= cyl2car ## vv_cyl 
-	
+
 	rr_car	= [ [ rr_cyl[0] * cos ( rr_cyl[1] ) ], $
 				[ rr_cyl[0] * sin ( rr_cyl[1] ) ], $
 				[ rr_cyl[2] ] ]
@@ -366,8 +373,8 @@ pro lorentz_plot, $
 		vv_cyl_array	= [ vv_cyl_array, vv_cyl ]
 		rr_cyl_array	= [ rr_cyl_array, rr_cyl ]
 
-		print, sqrt ( vv_car[0]^2 + vv_car[1]^2 + vv_car[2]^2 )
-		print, sqrt ( vv_cyl[0]^2 + vv_cyl[1]^2 + vv_cyl[2]^2 )
+		;print, sqrt ( vv_car[0]^2 + vv_car[1]^2 + vv_car[2]^2 )
+		;print, sqrt ( vv_cyl[0]^2 + vv_cyl[1]^2 + vv_cyl[2]^2 )
 
 	endfor
 
@@ -409,11 +416,11 @@ pro lorentz_plot, $
 ;	vPar		= mean ( vPar_all ) 
 ;	vPer		= mean ( vPer_all )  
 	
-	vPar	= [ [vR],[vPhi],[vz] ] # bHere_gc / bMag_gc
+	vPar	= vv_cyl # bHere_gc / bMag_gc
 	vPer	= sqrt ( vMag^2 - vPar^2 )
 
-	print, sqrt ( vPer^2 + vPar^2 ), sqrt ( vR^2 + vPhi^2 + vz^2 )
-stop
+	;print, sqrt ( vPer^2 + vPar^2 ), sqrt ( vR^2 + vPhi^2 + vz^2 )
+
 	;plots, rr_array[iiFirstGyration,0], rr_array[iiFirstGyration,2], color = 200, thick = 3.0
 	;plots, [r,r], [z-0.6,z+0.6], lineStyle = 1
 	;plots, [r-0.3,r+0.3], [z,z], lineStyle = 1
@@ -508,67 +515,69 @@ stop
 	y_fl	= fl_rArray * sin ( fl_phiArray )
 	z_fl	= fl_zArray
 
-   	loadct, 12, /sil, rgb_table = ct12
-	red	= transpose ( ct12[12*16-1,*] )
-	blue	= transpose ( ct12[8*16-1,*] )
-	green	= transpose ( ct12[1*16-1,*] )
+	if not keyword_set ( noPlot ) then begin
 
-	iPlot, x_lorentz, y_lorentz, z_lorentz, $
-		rgb_table = 1, $
-		vert = fIndGen(nSteps)/nSteps*255, $
-		/zoom_on_resize, $
-		thick = 3, /iso
-	iPlot, x_gc, y_gc, z_gc, /over, $
-		rgb_table = 3, $
-		vert = fIndGen(nSteps)/nSteps*255, $
-		thick = 3
-	iPlot, x_fl, y_fl, z_fl, /over, $
-		color = green, $
-		transp = 50, $
-		thick = 4
+   		loadct, 12, /sil, rgb_table = ct12
+		red	= transpose ( ct12[12*16-1,*] )
+		blue	= transpose ( ct12[8*16-1,*] )
+		green	= transpose ( ct12[1*16-1,*] )
 
-	for i = 0, 11 do begin
+		iPlot, x_lorentz, y_lorentz, z_lorentz, $
+			rgb_table = 1, $
+			vert = fIndGen(nSteps)/nSteps*255, $
+			/zoom_on_resize, $
+			thick = 3, /iso
+		iPlot, x_gc, y_gc, z_gc, /over, $
+			rgb_table = 3, $
+			vert = fIndGen(nSteps)/nSteps*255, $
+			thick = 3
+		iPlot, x_fl, y_fl, z_fl, /over, $
+			color = green, $
+			transp = 50, $
+			thick = 4
 
-		bbbs_phi	= eqdsk.rbbbs * 0 + i * !pi * 2 / 12
-		x_bbbs	= eqdsk.rbbbs * cos ( bbbs_phi )
-		y_bbbs	= eqdsk.rbbbs * sin ( bbbs_phi )
-		z_bbbs	= eqdsk.zbbbs
+		for i = 0, 11 do begin
 
-		iPlot, x_bbbs, y_bbbs, z_bbbs, $
-			/over, $
-			trans = 90, $
-			thick = 6
-	endfor
+			bbbs_phi	= eqdsk.rbbbs * 0 + i * !pi * 2 / 12
+			x_bbbs	= eqdsk.rbbbs * cos ( bbbs_phi )
+			y_bbbs	= eqdsk.rbbbs * sin ( bbbs_phi )
+			z_bbbs	= eqdsk.zbbbs
 
-	;for i = 0, 60 do begin
+			iPlot, x_bbbs, y_bbbs, z_bbbs, $
+				/over, $
+				trans = 90, $
+				thick = 6
+		endfor
 
-	;	lim_phi	= eqdsk.rlim * 0 + i * !pi * 2 / 180
-	;	x_lim	= eqdsk.rlim * cos ( lim_phi )
-	;	y_lim	= eqdsk.rlim * sin ( lim_phi )
-	;	z_lim	= eqdsk.zlim
+		;for i = 0, 60 do begin
 
-	;	iPlot, x_lim, y_lim, z_lim, $
-	;		/over, $
-	;		trans = 50, $
-	;		thick = 10 
-	;endfor
+		;	lim_phi	= eqdsk.rlim * 0 + i * !pi * 2 / 180
+		;	x_lim	= eqdsk.rlim * cos ( lim_phi )
+		;	y_lim	= eqdsk.rlim * sin ( lim_phi )
+		;	z_lim	= eqdsk.zlim
 
-
-	iPlot, fl_rArray, fl_zArray, /iso, $
-		color = blue, $
-		transp = 70, $
-		thick = 3, $
-		/zoom_on_resize
-	iPlot, rTrack, zTrack, /over, $
-		color = red, $
-		thick = 2
-	iPlot, rr_cyl_array[*,0], rr_cyl_array[*,2], /over, $
-		color = green, $
-		thick = 2, $
-		trans = 50
-	iPlot, eqdsk.rbbbs, eqdsk.zbbbs, /over
-	iPlot, eqdsk.rLim, eqdsk.zLim, /over
+		;	iPlot, x_lim, y_lim, z_lim, $
+		;		/over, $
+		;		trans = 50, $
+		;		thick = 10 
+		;endfor
 
 
-stop
+		iPlot, fl_rArray, fl_zArray, /iso, $
+			color = blue, $
+			transp = 70, $
+			thick = 3, $
+			/zoom_on_resize
+		iPlot, rTrack, zTrack, /over, $
+			color = red, $
+			thick = 2
+		iPlot, rr_cyl_array[*,0], rr_cyl_array[*,2], /over, $
+			color = green, $
+			thick = 2, $
+			trans = 50
+		iPlot, eqdsk.rbbbs, eqdsk.zbbbs, /over
+		iPlot, eqdsk.rLim, eqdsk.zLim, /over
+
+	endif
+
 end
