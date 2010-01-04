@@ -1,4 +1,4 @@
-function dlg_interpB, r, bStruct, bMag = bMag
+function dlg_interpB, r, bStruct, bMag = bMag, unit = unit
 
 	bR  = interpolate ( bStruct.bR, $
 			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
@@ -15,7 +15,15 @@ function dlg_interpB, r, bStruct, bMag = bMag
 
 	bMag	= sqrt ( bR^2 + bPhi^2 + bz^2 )
 
-	return, [ bR, bPhi, bz ]
+	if keyword_set ( unit ) then begin
+
+		return, [ bR, bPhi, bz ] / bMag
+
+	endif else begin
+
+		return, [ bR, bPhi, bz ]
+
+	endelse
 
 end
 
@@ -59,20 +67,7 @@ end
 
 function dlg_vPer, r, u, bStruct
 
-    bR  = interpolate ( bStruct.bR, $
-			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
-        ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
-		cubic = -0.5 )
-    bPhi  = interpolate ( bStruct.bPhi, $
-			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
-        ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
-		cubic = -0.5 )
-    bz  = interpolate ( bStruct.bz, $
-			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
-        ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
-		cubic = -0.5 )
-    
-    bMag    = sqrt ( bR^2 + bPhi^2 + bz^2 )
+	b	= dlg_interpB ( r, bStruct, bMag = bMag )
 
     return, sqrt ( 2.0 * u * bMag / bStruct.mi )
 
@@ -117,22 +112,11 @@ function dlg_gc_velocity, vPer, vPar, r, bStruct
         ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
 		cubic = -0.5 ) 
 
-    unitb_R = interpolate ( bStruct.unitb_R, $
-			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
-        ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
-		cubic = -0.5 ) 
-    unitb_phi = interpolate ( bStruct.unitb_phi, $
-			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
-        ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
-		cubic = -0.5 ) 
-    unitb_z = interpolate ( bStruct.unitb_z, $
-			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
-        ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
-		cubic = -0.5 ) 
+	unitb	= dlg_interpB ( r, bStruct, /unit ) 
 
-    vgc_R   = vPar * unitb_R + vPer^2 * grad_R + vPar^2 * curv_R 
-    vgc_phi   = vPar * unitb_phi + vPer^2 * grad_phi + vPar^2 * curv_phi
-    vgc_z   = vPar * unitb_z + vPer^2 * grad_z + vPar^2 * curv_z
+    vgc_R   = vPar * unitb[0] + vPer^2 * grad_R + vPar^2 * curv_R 
+    vgc_phi   = vPar * unitb[1] + vPer^2 * grad_phi + vPar^2 * curv_phi
+    vgc_z   = vPar * unitb[2] + vPer^2 * grad_z + vPar^2 * curv_z
 
     return, [ vgc_R, vgc_phi, vgc_z ]
 
@@ -150,10 +134,10 @@ pro lorentz_plot, $
 
 	eqdsk = readGEqdsk ( eqdsk_fName )	
 
-	eqdsk.bR	= eqdsk.bR*0
-	eqdsk.bz	= eqdsk.bz*0
-	eqdsk.bPhi	= -eqdsk.bPhi
-	eqdsk.bMag	= sqrt ( eqdsk.bR^2+eqdsk.bPhi^2+eqdsk.bz^2)
+	;eqdsk.bR	= eqdsk.bR*0
+	;eqdsk.bz	= eqdsk.bz*0
+	;eqdsk.bPhi	= -eqdsk.bPhi
+	;eqdsk.bMag	= sqrt ( eqdsk.bR^2+eqdsk.bPhi^2+eqdsk.bz^2)
 
 	q	= 1.602e-19
 	mi	= 1.672e-27 
