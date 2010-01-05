@@ -129,13 +129,17 @@ pro lorentz_plot, $
 	vv_cyl = vv_cyl, $
 	rr_cyl = rr_cyl, $
 	nSteps = nSteps, $
-	x_gc = x_gc, y_gc = y_gc, z_gc = z_gc
+	x_gc = x_gc, y_gc = y_gc, z_gc = z_gc, $
+	dt = dt, $
+	delay = delay, $
+	match = match, $
+	fieldLine = fieldLine
 
 	eqdsk_fName	= '../eqdsk/g120740.00275.EFIT02.mds.uncorrected.qscale_1.00000'
 	eqdsk_fName	= '../eqdsk/g129x129_1051206002.01120'
 	eqdsk_fName	= '../eqdsk/eqdsk.122993'
 	;eqdsk_fName	= '../eqdsk/JET_75500B19_trxpl_15_plasma_state.geq'
-	;eqdsk_fName	= '../eqdsk/Scen4_bn2.57_129x129'
+	eqdsk_fName	= '../eqdsk/Scen4_bn2.57_129x129'
 
 	eqdsk = readGEqdsk ( eqdsk_fName )	
 
@@ -160,13 +164,30 @@ pro lorentz_plot, $
 		vv_cyl	= transpose ( [ vR, vPhi, vz ] )
 	endif
 
+	cyl2car	=	[	[ cos ( rr_cyl[1] ), sin ( rr_cyl[1] ), 0 ], $
+					[ -sin ( rr_cyl[1] ), cos ( rr_cyl[1] ), 0 ], $
+					[ 0, 0, 1 ] ]
+
+	car2cyl	= invert ( cyl2car )
+
+	vv_car	= cyl2car ## vv_cyl 
+
+	rr_car	= [ [ rr_cyl[0] * cos ( rr_cyl[1] ) ], $
+				[ rr_cyl[0] * sin ( rr_cyl[1] ) ], $
+				[ rr_cyl[2] ] ]
+
+	rr_car_start	= rr_car
+	rr_cyl_start	= rr_cyl
+	vv_car_start	= vv_car
+	vv_cyl_start	= vv_cyl
+ 
+
 	vMag	= sqrt ( vv_cyl[0]^2 + vv_cyl[1]^2 + vv_cyl[2]^2 )
 	en_	= mi * vMag^2 / 2.0 / 1.602e-19 * 1e-3; [keV]
-	print, en_, 'keV', rr_cyl[*], vv_cyl[*]
+	print, en_, 'keV';, rr_cyl[*], vv_cyl[*]
 	
-	dt = 0.01e-7 
+	if not keyword_set ( dt ) then dt = 0.01e-7 
 	if not keyword_set ( nSteps ) then nSteps = 2000
-
 
 	;	Calculate the Guiding Center terms
 
@@ -308,153 +329,149 @@ pro lorentz_plot, $
 			mi : mi }
 
 
-	;	Here is the Lorentz eqn integration, done in 
-	;	cartesian coords so we have to rotate the b field
-	;	and velocity vectors to cartesian first, and also
-	;	convert the position 
+	if keyword_set ( lorentz ) then begin
 
-	cyl2car	=	[	[ cos ( rr_cyl[1] ), sin ( rr_cyl[1] ), 0 ], $
-					[ -sin ( rr_cyl[1] ), cos ( rr_cyl[1] ), 0 ], $
-					[ 0, 0, 1 ] ]
+		;	Here is the Lorentz eqn integration, done in 
+		;	cartesian coords so we have to rotate the b field
+		;	and velocity vectors to cartesian first, and also
+		;	convert the position 
 
-	car2cyl	= invert ( cyl2car )
+		vv_car_array	= vv_car
+		rr_car_array	= rr_car
+		tt_array	= 0
 
-	vv_car	= cyl2car ## vv_cyl 
+		;vv_cyl_array	= vv_cyl
+		;rr_cyl_array	= rr_cyl
 
-	rr_car	= [ [ rr_cyl[0] * cos ( rr_cyl[1] ) ], $
-				[ rr_cyl[0] * sin ( rr_cyl[1] ) ], $
-				[ rr_cyl[2] ] ]
- 
-	vv_car_array	= vv_car
-	rr_car_array	= rr_car
-	tt_array	= 0
+		for i = 0, nSteps - 2 do begin
 
-	vv_cyl_array	= vv_cyl
-	rr_cyl_array	= rr_cyl
+			if dt * i lt delay then begin
+
+				rr_car	= rr_car + vv_car * dt 
+
+			endif else begin
+
+				vxB	= dlg_vxB ( rr_car, vv_car, bStruct )
+				k1_v	= dt * q / mi * vxB	
+				k1_r	= dt * ( vv_car )
+		
+				vxB	= dlg_vxB ( rr_car + k1_r / 2.0, vv_car + k1_v / 2.0, bStruct )
+				k2_v	= dt * q / mi * vxB	
+				k2_r	= dt * ( vv_car + k1_v / 2.0 )
+		
+				vxB	= dlg_vxB ( rr_car + k2_r / 2.0, vv_car + k2_v / 2.0, bStruct )
+				k3_v	= dt * q / mi * vxB	
+				k3_r	= dt * ( vv_car + k2_v / 2.0 )
+		
+				vxB	= dlg_vxB ( rr_car + k3_r, vv_car + k3_v, bStruct )
+				k4_v	= dt * q / mi * vxB	
+				k4_r	= dt * ( vv_car + k3_v )
+		
+				vv_car	= vv_car + ( k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v ) / 6.0
+				rr_car	= rr_car + ( k1_r + 2.0 * k2_r + 2.0 * k3_r + k4_r ) / 6.0
+
+			endelse
+		
+			vv_car_array	= [ vv_car_array, vv_car ]
+			rr_car_array	= [ rr_car_array, rr_car ]
+			tt_array	= [ tt_array, i * dt ]
+
+			;xyMag	= sqrt ( rr_car[0]^2 + rr_car[1]^2 )
+
+			;cyl2car	= [	[ rr_car[0] / xyMag, - rr_car[1] / xyMag, 0 ], $
+			;			[ rr_car[1] / xyMag, rr_car[0] / xyMag, 0 ], $
+			;			[ 0,0,1] ] 
+
+			;car2cyl	= invert ( cyl2car )
+
+			;vv_cyl	= car2cyl ## vv_car
+			;rr_cyl	= [	[ xyMag ], $
+			;			[ aTan ( rr_car[1], rr_car[0] ) ], $
+			;			[ rr_car[2] ] ]
+		
+			;vv_cyl_array	= [ vv_cyl_array, vv_cyl ]
+			;rr_cyl_array	= [ rr_cyl_array, rr_cyl ]
+
+			;print, sqrt ( vv_car[0]^2 + vv_car[1]^2 + vv_car[2]^2 )
+			;print, sqrt ( vv_cyl[0]^2 + vv_cyl[1]^2 + vv_cyl[2]^2 )
+
+		endfor
+
+	endif
+
+	if keyword_set ( match ) then begin
+
+		;	Find mean guiding center start point from 
+		;	approx. one gyration
+
+		;	Use magnetic field here for a guess at the 
+		;	gyro frequency, that's all
+		
+		pos	= rr_cyl
+		bHere_g   = dlg_interpB ( pos, bStruct, bMag = g_bMag )
+
+		omega0	= abs ( 2.0 * q * g_bMag / mi)
+		iiFirstGyration	= where ( tt_array lt 4.0 * !pi / omega0 )
+
+		R_gc	= mean ( rr_cyl_array[iiFirstGyration,0] )
+		phi_gc	= mean ( rr_cyl_array[iiFirstGyration,1] )
+		z_gc	= mean ( rr_cyl_array[iiFirstGyration,2] )
+
+		;phi_gc = phi
+
+		pos	= [ R_gc, phi_gc, z_gc ]
+
+		bHere_gc   = dlg_interpB ( pos, bStruct, bMag = bMag_gc )
+
+		vPar	= vv_cyl # bHere_gc / bMag_gc
+		vPer	= sqrt ( vMag^2 - vPar^2 )
+
+	endif else begin
+
+		pos		= transpose ( rr_cyl_start )
+		bHere_gc   = dlg_interpB ( pos, bStruct, bMag = bMag_gc )
+		vPar	= vv_cyl_start # bHere_gc / bMag_gc
+		vPer	= sqrt ( vMag^2 - vPar^2 )
 	
-	for i = 0, nSteps - 2 do begin
-	
-		vxB	= dlg_vxB ( rr_car, vv_car, bStruct )
-		k1_v	= dt * q / mi * vxB	
-		k1_r	= dt * ( vv_car )
-	
-		vxB	= dlg_vxB ( rr_car + k1_r / 2.0, vv_car + k1_v / 2.0, bStruct )
-		k2_v	= dt * q / mi * vxB	
-		k2_r	= dt * ( vv_car + k1_v / 2.0 )
-	
-		vxB	= dlg_vxB ( rr_car + k2_r / 2.0, vv_car + k2_v / 2.0, bStruct )
-		k3_v	= dt * q / mi * vxB	
-		k3_r	= dt * ( vv_car + k2_v / 2.0 )
-	
-		vxB	= dlg_vxB ( rr_car + k3_r, vv_car + k3_v, bStruct )
-		k4_v	= dt * q / mi * vxB	
-		k4_r	= dt * ( vv_car + k3_v )
-	
-		vv_car	= vv_car + ( k1_v + 2.0 * k2_v + 2.0 * k3_v + k4_v ) / 6.0
-		rr_car	= rr_car + ( k1_r + 2.0 * k2_r + 2.0 * k3_r + k4_r ) / 6.0
-	
-		vv_car_array	= [ vv_car_array, vv_car ]
-		rr_car_array	= [ rr_car_array, rr_car ]
-		tt_array	= [ tt_array, i * dt ]
+	endelse
 
-		xyMag	= sqrt ( rr_car[0]^2 + rr_car[1]^2 )
-
-		cyl2car	= [	[ rr_car[0] / xyMag, - rr_car[1] / xyMag, 0 ], $
-					[ rr_car[1] / xyMag, rr_car[0] / xyMag, 0 ], $
-					[ 0,0,1] ] 
-
-		car2cyl	= invert ( cyl2car )
-
-		vv_cyl	= car2cyl ## vv_car
-		rr_cyl	= [	[ xyMag ], $
-					[ aTan ( rr_car[1], rr_car[0] ) ], $
-					[ rr_car[2] ] ]
-	
-		vv_cyl_array	= [ vv_cyl_array, vv_cyl ]
-		rr_cyl_array	= [ rr_cyl_array, rr_cyl ]
-
-		;print, sqrt ( vv_car[0]^2 + vv_car[1]^2 + vv_car[2]^2 )
-		;print, sqrt ( vv_cyl[0]^2 + vv_cyl[1]^2 + vv_cyl[2]^2 )
-
-	endfor
-
-
-	;	Find mean guiding center start point from 
-	;	approx. one gyration
-
-	;	Use magnetic field here for a guess at the 
-	;	gyro frequency, that's all
-	
-	pos	= rr_cyl
-	bHere_g   = dlg_interpB ( pos, bStruct, bMag = g_bMag )
-
-	omega0	= abs ( 2.0 * q * g_bMag / mi)
-	iiFirstGyration	= where ( tt_array lt 4.0 * !pi / omega0 )
-
-	R_gc	= mean ( rr_cyl_array[iiFirstGyration,0] )
-	phi_gc	= mean ( rr_cyl_array[iiFirstGyration,1] )
-	z_gc	= mean ( rr_cyl_array[iiFirstGyration,2] )
-
-	;phi_gc = phi
-
-	pos	= [ R_gc, phi_gc, z_gc ]
-
-	bHere_gc   = dlg_interpB ( pos, bStruct, bMag = bMag_gc )
-
-	;gc_bR_B	= bHere_gc[0] / gc_bMag
-	;gc_bPhi_B	= bHere_gc[1] / gc_bMag
-	;gc_bz_B	= bHere_gc[2] / gc_bMag
-
-	;vMag_all	= sqrt ( vv_cyl_array[iiFirstGyration,0]^2 $
-	;				+ vv_cyl_array[iiFirstGyration,1]^2 $
-	;				+ vv_cyl_array[iiFirstGyration,2]^2 )
-	;vPar_all	= ( vv_cyl_array[iiFirstGyration,0] * gc_bR_B $
-	;				+ vv_cyl_array[iiFirstGyration,1]* gc_bPhi_B $
-	;				+ vv_cyl_array[iiFirstGyration,2] * gc_bz_B )
-	;vPer_all	= sqrt ( vMag_all^2 - vPar_all^2 )
-;
-;	vPar		= mean ( vPar_all ) 
-;	vPer		= mean ( vPer_all )  
-	
-	vPar	= vv_cyl # bHere_gc / bMag_gc
-	vPer	= sqrt ( vMag^2 - vPar^2 )
-
-	;print, sqrt ( vPer^2 + vPar^2 ), sqrt ( vR^2 + vPhi^2 + vz^2 )
-
-	;plots, rr_array[iiFirstGyration,0], rr_array[iiFirstGyration,2], color = 200, thick = 3.0
-	;plots, [r,r], [z-0.6,z+0.6], lineStyle = 1
-	;plots, [r-0.3,r+0.3], [z,z], lineStyle = 1
 
 	; Trace field line for comparison
+	if keyword_set ( fieldLine ) then begin
 	
-	fl_pos	= [ R_gc, phi_gc, z_gc ]
+		fl_pos	= [ R_gc, phi_gc, z_gc ]
 
-	fl_rArray	= fl_pos[0]
-	fl_phiArray	= fl_pos[1]
-	fl_zArray	= fl_pos[2] 
-	
-	dPhi    = -2 * !pi / 100.0
-	for fl_i = 0, 250 do begin
+		fl_rArray	= fl_pos[0]
+		fl_phiArray	= fl_pos[1]
+		fl_zArray	= fl_pos[2] 
 		
-		bHere   = dlg_interpB ( fl_pos, bStruct, bMag = bMag )
-		K1  = dPhi * bHere / bMag
+		dPhi    = -2 * !pi / 100.0
+		for fl_i = 0, 250 do begin
+			
+			bHere   = dlg_interpB ( fl_pos, bStruct, bMag = bMag )
+			K1  = dPhi * bHere / bMag
+			
+			bHere   = dlg_interpB ( fl_pos + K1 / 2.0, bStruct, bMag = bMag )
+			K2    = dPhi * bHere / bMag
+			
+			bHere   = dlg_interpB ( fl_pos + K2 / 2.0, bStruct, bMag = bMag )
+			K3    = dPhi * bHere / bMag
+			
+			bHere   = dlg_interpB ( fl_pos + K3, bStruct, bMag = bMag )
+			K4    = dPhi * bHere / bMag
+			
+			fl_pos    = fl_pos + ( K1 + 2.0 * K2 + 2.0 * K3 + K4 ) / 6.0
 		
-		bHere   = dlg_interpB ( fl_pos + K1 / 2.0, bStruct, bMag = bMag )
-		K2    = dPhi * bHere / bMag
+			fl_rArray  = [ fl_rArray, fl_pos[0] ]
+			fl_phiArray	= [ fl_phiArray, fl_pos[1] ]
+			fl_zArray  = [ fl_zArray, fl_pos[2] ]
 		
-		bHere   = dlg_interpB ( fl_pos + K2 / 2.0, bStruct, bMag = bMag )
-		K3    = dPhi * bHere / bMag
-		
-		bHere   = dlg_interpB ( fl_pos + K3, bStruct, bMag = bMag )
-		K4    = dPhi * bHere / bMag
-		
-		fl_pos    = fl_pos + ( K1 + 2.0 * K2 + 2.0 * K3 + K4 ) / 6.0
-	
-		fl_rArray  = [ fl_rArray, fl_pos[0] ]
-		fl_phiArray	= [ fl_phiArray, fl_pos[1] ]
-		fl_zArray  = [ fl_zArray, fl_pos[2] ]
-	
-	endFor
+		endFor
+
+	endif
+
+
+	;	GC integration
 
 	bHere   = dlg_interpB ( pos, bStruct, bMag = bMag )
 	u   = mi * vPer^2 / ( 2.0 * bMag )
@@ -464,56 +481,88 @@ pro lorentz_plot, $
 	zTrack  	= pos[2] 
 	vPerTrack  	= vPer
 	vParTrack   = vPar
+
+	rr_car	= rr_car_start
+	vv_car	= vv_car_start
 	
 	for i = 0, nSteps - 2 do begin
+
+		if dt * i lt delay then begin
+
+			rr_car	= rr_car + vv_car * dt 
+			rr_cyl	= [ [ sqrt ( rr_car[0]^2+rr_car[1]^2 ) ], $
+				[ aTan ( rr_car[1], rr_car[0] ) ], $
+				[ rr_car[2] ] ]
+
+			pos	= transpose ( rr_cyl )
+
+			bHere_gc   = dlg_interpB ( pos, bStruct, bMag = bMag_gc )
+
+			vPar	= vv_cyl_start # bHere_gc / bMag_gc
+			vPer	= sqrt ( vMag^2 - vPar^2 )
+
+			bHere   = dlg_interpB ( pos, bStruct, bMag = bMag )
+			u   = mi * vPer^2 / ( 2.0 * bMag )
+
+		endif else begin
+
+	    	vPer   = dlg_vPer ( pos, u, bStruct ) 
+	    	vgc = dlg_gc_velocity ( vPer, vPar, pos, bStruct )
+	    	k1_vPar   = dt * dlg_vPar ( pos, u, bStruct ) 
+	    	k1_vgc  = dt * vgc
 	
-	    vPer   = dlg_vPer ( pos, u, bStruct ) 
-	    vgc = dlg_gc_velocity ( vPer, vPar, pos, bStruct )
-	    k1_vPar   = dt * dlg_vPar ( pos, u, bStruct ) 
-	    k1_vgc  = dt * vgc
+	    	vPer   = dlg_vPer ( pos + k1_vgc / 2.0, u, bStruct ) 
+	    	vgc = dlg_gc_velocity ( vPer, vPar + k1_vPar / 2.0, pos + k1_vgc / 2.0, bStruct )
+	    	k2_vPar   = dt * dlg_vPar ( pos + k1_vgc / 2.0, u, bStruct ) 
+	    	k2_vgc  = dt * vgc
+ 
+	    	vPer   = dlg_vPer ( pos + k2_vgc / 2.0, u, bStruct ) 
+	    	vgc = dlg_gc_velocity ( vPer, vPar + k2_vPar / 2.0, pos + k2_vgc / 2.0, bStruct )
+	    	k3_vPar   = dt * dlg_vPar ( pos + k2_vgc / 2.0, u, bStruct ) 
+	    	k3_vgc  = dt * vgc
+
+	    	vPer   = dlg_vPer ( pos + k3_vgc, u, bStruct ) 
+	    	vgc = dlg_gc_velocity ( vPer, vPar + k3_vPar, pos + k3_vgc, bStruct )
+	    	k4_vPar   = dt * dlg_vPar ( pos + k3_vgc, u, bStruct ) 
+	    	k4_vgc  = dt * vgc
 	
-	    vPer   = dlg_vPer ( pos + k1_vgc / 2.0, u, bStruct ) 
-	    vgc = dlg_gc_velocity ( vPer, vPar + k1_vPar / 2.0, pos + k1_vgc / 2.0, bStruct )
-	    k2_vPar   = dt * dlg_vPar ( pos + k1_vgc / 2.0, u, bStruct ) 
-	    k2_vgc  = dt * vgc
-	 
-	    vPer   = dlg_vPer ( pos + k2_vgc / 2.0, u, bStruct ) 
-	    vgc = dlg_gc_velocity ( vPer, vPar + k2_vPar / 2.0, pos + k2_vgc / 2.0, bStruct )
-	    k3_vPar   = dt * dlg_vPar ( pos + k2_vgc / 2.0, u, bStruct ) 
-	    k3_vgc  = dt * vgc
-	
-	    vPer   = dlg_vPer ( pos + k3_vgc, u, bStruct ) 
-	    vgc = dlg_gc_velocity ( vPer, vPar + k3_vPar, pos + k3_vgc, bStruct )
-	    k4_vPar   = dt * dlg_vPar ( pos + k3_vgc, u, bStruct ) 
-	    k4_vgc  = dt * vgc
-	    
-	    vPar    = vPar + ( k1_vPar + 2.0 * k2_vPar + 2.0 * k3_vPar + k4_vPar ) / 6.0
-	    pos   = pos + ( k1_vgc + 2.0 * k2_vgc + 2.0 * k3_vgc + k4_vgc ) / 6.0
+	    	vPar    = vPar + ( k1_vPar + 2.0 * k2_vPar + 2.0 * k3_vPar + k4_vPar ) / 6.0
+	    	pos   = pos + ( k1_vgc + 2.0 * k2_vgc + 2.0 * k3_vgc + k4_vgc ) / 6.0
+
+		endelse
 	
 		stillIn	= dlg_checkIn ( pos, bStruct )
-	    
-		rTrack  = [ rTrack, pos[0] ]
-		phiTrack	= [ phiTrack, pos[1] ]
-	    zTrack  = [ zTrack, pos[2] ]
+		if stillIn eq 0 and dt * i gt delay then div = 0 else div = 1
+		rTrack  = [ rTrack, pos[0] / div ]
+		phiTrack	= [ phiTrack, pos[1] / div ]
+	    zTrack  = [ zTrack, pos[2] / div ]
 
-	    vPerTrack  = [ vPerTrack, vPer ]
-	    vParTrack   = [ vParTrack, vPar ]
+	    vPerTrack  = [ vPerTrack, vPer / div ]
+	    vParTrack   = [ vParTrack, vPar / div ]
 	
 	endfor
 
 	;	convert cylindrical coords to cartesian for plotting
 
-	x_lorentz	= rr_car_array[*,0]
-	y_lorentz	= rr_car_array[*,1]
-	z_lorentz	= rr_car_array[*,2]
+	if keyword_set ( lorentz ) then begin
+
+		x_lorentz	= rr_car_array[*,0]
+		y_lorentz	= rr_car_array[*,1]
+		z_lorentz	= rr_car_array[*,2]
+
+	endif
 	
 	x_gc	= rTrack * cos ( phiTrack )
 	y_gc	= rTrack * sin ( phiTrack )
 	z_gc	= zTrack
+
+	if keyword_set ( fieldLine ) then begin
 	
-	x_fl	= fl_rArray * cos ( fl_phiArray )
-	y_fl	= fl_rArray * sin ( fl_phiArray )
-	z_fl	= fl_zArray
+		x_fl	= fl_rArray * cos ( fl_phiArray )
+		y_fl	= fl_rArray * sin ( fl_phiArray )
+		z_fl	= fl_zArray
+
+	endif
 
 	if not keyword_set ( noPlot ) then begin
 
@@ -579,5 +628,7 @@ pro lorentz_plot, $
 		iPlot, eqdsk.rLim, eqdsk.zLim, /over
 
 	endif
+
+	close, /all
 
 end

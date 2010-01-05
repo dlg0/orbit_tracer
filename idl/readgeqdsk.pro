@@ -96,8 +96,6 @@ if keyword_set ( bPolFactor ) then begin
 
 endif
 
-
-
 if keyword_set ( reWrite ) then begin
 
 	openw, lun, fileName+'.dlgMod', /get_lun
@@ -140,8 +138,6 @@ fluxGrid    = fIndGen ( nW ) * fStep + simag
 
 bR  = -1.0 * dlg_pDeriv ( psizr, 2, zStep ) / rebin ( R, nW, nH )
 bz  = dlg_pDeriv ( psizr, 1, rStep ) / rebin ( R, nW, nH )
-print, max(bR), min(bR)
-print, max(bz), min(bz)
 fPol_spline = spl_init ( fluxGrid, fPol )
 
 fPolRZ  = reform ( spl_interp ( fluxGrid, fPol, fPol_spline, psizr[*] ), nW, nH )
@@ -331,30 +327,31 @@ if keyword_set ( pAngle ) then begin
         endfor
     endfor
 
-rPos_all    = rPos_all[1:*]
-zPos_all    = zPos_all[1:*]
-chi_all    = chi_all[1:*]
-
-triangulate, rPos_all, zPos_all, triangles, b
-
-rz_chi  = triGrid ( rPos_all, zPos_all, chi_all, triangles, $
-    [ rStep, zStep ], [ min ( R ), min ( z ), max ( R ), max ( z ) ] ); , exptrapolate = b )
-
-gradChi_R_all   = gradChi_R_all[1:*]
-gradChi_Z_all   = gradChi_Z_all[1:*]
-lengthP = lengthP[1:*]
-
-lengthP_spline = spl_init ( fluxGrid, fPol )
-lengthPolRZ  = reform ( spl_interp ( lengthP_fluxGrid, lengthP, lengthP_spline, psizr[*] ), nW, nH )
-
-for i = 0, 11 do begin
-
-    oPlot, rChi_all[i,*], zChi_all[i,*], color = 0
-
-endfor
-!p.background = 0
+	rPos_all    = rPos_all[1:*]
+	zPos_all    = zPos_all[1:*]
+	chi_all    = chi_all[1:*]
+	
+	triangulate, rPos_all, zPos_all, triangles, b
+	
+	rz_chi  = triGrid ( rPos_all, zPos_all, chi_all, triangles, $
+	    [ rStep, zStep ], [ min ( R ), min ( z ), max ( R ), max ( z ) ] ); , exptrapolate = b )
+	
+	gradChi_R_all   = gradChi_R_all[1:*]
+	gradChi_Z_all   = gradChi_Z_all[1:*]
+	lengthP = lengthP[1:*]
+	
+	lengthP_spline = spl_init ( fluxGrid, fPol )
+	lengthPolRZ  = reform ( spl_interp ( lengthP_fluxGrid, lengthP, lengthP_spline, psizr[*] ), nW, nH )
+	
+	for i = 0, 11 do begin
+	
+	    oPlot, rChi_all[i,*], zChi_all[i,*], color = 0
+	
+	endfor
+	!p.background = 0
 
 endif
+
 if keyword_set ( plot_ ) then begin
 
     device, decomposed = 0
@@ -479,7 +476,6 @@ endif else begin
 
 endelse
 
-	
 return, eqdsk
 
 end
