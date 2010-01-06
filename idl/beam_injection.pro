@@ -17,10 +17,14 @@ pro beam_injection
 	amu	= 2
 	z	= 2
 	m	= amu * proton_mass 
+	q	= z * e
 	vMag	= sqrt ( v_car[0]^2 + v_car[1]^2 + v_car[2]^2 )
 	energy	= 0.5 * m * vMag^2 / e	; [ev]
+
+	gc_terms, m, eqdsk, gc_struct = bStruct
 	
-	nP	= 20
+	nP	= 100 
+	nSteps	= 1000
 
 	imsl_randomOpt, set = 12345
 
@@ -81,10 +85,18 @@ pro beam_injection
 
 	;	Calculate trajectories
 
-	nSteps	= 1000
 	x_gc	= fltArr ( nSteps, nP )
 	y_gc	= fltArr ( nSteps, nP )
 	z_gc	= fltArr ( nSteps, nP )
+	
+	time	= fIndGen ( nSteps ) * dt
+
+	vPer	= fltArr ( nSteps, nP )
+	vPar	= fltArr ( nSteps, nP )
+
+	neutral	= intArr ( nSteps, nP )
+
+	wall	= intArr ( nP )
 
 	r_cyl_start	= r_cyl
 	for i=0,nP-1 do begin
@@ -98,10 +110,25 @@ pro beam_injection
 			y_gc = y_gc_tmp, $
 			z_gc = z_gc_tmp, $
 			delay = delay[i], $
-			dt = dt
+			dt = dt, $
+			stillIn = stillIn, $
+			vPerTrack = vPerTrack, $
+			vParTrack = vParTrack, $
+			neutralTrack = neutralTrack, $
+			eqdsk = eqdsk, $
+			bStruct = bStruct, $
+			mass = m, q = q
+
 		x_gc[*,i]	= x_gc_tmp
 		y_gc[*,i]	= y_gc_tmp
 		z_gc[*,i]	= z_gc_tmp
+
+		vPer[*,i]	= vPerTrack
+		vPar[*,i]	= vParTrack
+		
+		wall[i]	= stillIn
+
+		neutral[*,i]	= neutralTrack
 
 		r_cyl	= r_cyl_start
 	endfor	
@@ -156,6 +183,64 @@ pro beam_injection
 			trans = 50
 	
 	endfor	
+
+	;	Write netCDF file containing track data
+
+	id = nCdf_create ( 'particleData.nc', /clobber )
+	nCdf_control, id, /fill
+
+	tDim_id	= nCdf_dimDef ( id, 'time', nSteps )
+	nDim_id	= nCdf_dimDef ( id, 'nP', nP )
+
+	t_id	= nCdf_varDef ( id, 'time', [tDim_id], /float )
+
+	xgc_id	= nCdf_varDef ( id, 'xgc', [tDim_id,nDim_id], /float )
+	ygc_id	= nCdf_varDef ( id, 'ygc', [tDim_id,nDim_id], /float )
+	zgc_id	= nCdf_varDef ( id, 'zgc', [tDim_id,nDim_id], /float )
+
+	vPer_id	= nCdf_varDef ( id, 'vPer', [tDim_id,nDim_id], /float )
+	vPar_id	= nCdf_varDef ( id, 'vPar', [tDim_id,nDim_id], /float )
+
+	wall_id	= nCdf_varDef ( id, 'wall', [nDim_id], /short )
+	neutral_id	= nCdf_varDef ( id, 'neutral', [tDim_id,nDim_id], /short )
+
+	nCdf_attPut, id, t_id, 'units', 's'
+
+	nCdf_attPut, id, xgc_id, 'units', 'm'
+	nCdf_attPut, id, ygc_id, 'units', 'm'
+	nCdf_attPut, id, zgc_id, 'units', 'm'
+
+	nCdf_attPut, id, xgc_id, 'long_name', 'x position'
+	nCdf_attPut, id, ygc_id, 'long_name', 'y position'
+	nCdf_attPut, id, zgc_id, 'long_name', 'z position'
+
+	nCdf_attPut, id, vPer_id, 'units', 'm/s'
+	nCdf_attPut, id, vPar_id, 'units', 'm/s'
+	
+	nCdf_attPut, id, vPer_id, 'long_name', 'Perpendicular velocity'
+	nCdf_attPut, id, vPar_id, 'long_name', 'Parallel velocity'
+
+	nCdf_attPut, id, neutral_id, 'long_name', 'Neutral status, i.e., does the particle feel the B field[0] or not[1]'
+	nCdf_attPut, id, wall_id, 'long_name', 'Wall status, i.e., does the particle hit the wall[1] or not[0]'
+
+	nCdf_attPut, id, /global, 'Title', 'ITER test particle trajectory data'
+
+	nCdf_control, id, /enDef
+
+	nCdf_varPut, id, xgc_id, x_gc
+	nCdf_varPut, id, ygc_id, y_gc
+	nCdf_varPut, id, zgc_id, z_gc
+
+	nCdf_varPut, id, vPer_id, vPer 
+	nCdf_varPut, id, vPar_id, vPar
+
+	nCdf_varPut, id, t_id, time
+
+	nCdf_varPut, id, neutral_id, neutral
+	nCdf_varPut, id, wall_id, abs(wall-1)
+
+	nCdf_close, id
+	
 stop
 
 end
