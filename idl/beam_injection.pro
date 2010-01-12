@@ -10,7 +10,7 @@ pro beam_injection
 	
 	v_car	= [ [ -0.7e6 ], $
 				[ 0.5e6 ], $
-				[ 0.2e6 ] ] * 8 
+				[ 0.2e6 ] ] * 100 
 
 	proton_mass	= 1.67e-27
 	e	= 1.602e-19
@@ -23,14 +23,14 @@ pro beam_injection
 
 	gc_terms, m, eqdsk, gc_struct = bStruct
 	
-	nP	= 100 
+	nP	= 10 
 	nSteps	= 1000
 
 	imsl_randomOpt, set = 12345
 
-	dt	= 0.1e-7
-	offset	= 10e-7; [s] 70 * dt  
-	spread	= 10 
+	dt	= 0.005e-7
+	offset	= 0.5e-7; [s] 70 * dt  
+	spread	= 0 
 	delay	= imsl_random ( nP, /normal ) * 0.2e-7 * spread + offset
 
 	deflection	= 0.05
@@ -89,6 +89,14 @@ pro beam_injection
 	y_gc	= fltArr ( nSteps, nP )
 	z_gc	= fltArr ( nSteps, nP )
 	
+	x_lorentz	= fltArr ( nSteps, nP )
+	y_lorentz	= fltArr ( nSteps, nP )
+	z_lorentz	= fltArr ( nSteps, nP )
+	
+	vx_lorentz	= fltArr ( nSteps, nP )
+	vy_lorentz	= fltArr ( nSteps, nP )
+	vz_lorentz	= fltArr ( nSteps, nP )
+	
 	time	= fIndGen ( nSteps ) * dt
 
 	vPer	= fltArr ( nSteps, nP )
@@ -109,6 +117,12 @@ pro beam_injection
 			x_gc = x_gc_tmp, $
 			y_gc = y_gc_tmp, $
 			z_gc = z_gc_tmp, $
+			x_lorentz = x_lorentz_tmp, $
+			y_lorentz = y_lorentz_tmp, $
+			z_lorentz = z_lorentz_tmp, $
+			vx_lorentz = vx_lorentz_tmp, $
+			vy_lorentz = vy_lorentz_tmp, $
+			vz_lorentz = vz_lorentz_tmp, $
 			delay = delay[i], $
 			dt = dt, $
 			stillIn = stillIn, $
@@ -117,11 +131,20 @@ pro beam_injection
 			neutralTrack = neutralTrack, $
 			eqdsk = eqdsk, $
 			bStruct = bStruct, $
-			mass = m, q = q
+			mass = m, q = q, $
+			/lorentz
 
 		x_gc[*,i]	= x_gc_tmp
 		y_gc[*,i]	= y_gc_tmp
 		z_gc[*,i]	= z_gc_tmp
+
+		x_lorentz[*,i]	= x_lorentz_tmp
+		y_lorentz[*,i]	= y_lorentz_tmp
+		z_lorentz[*,i]	= z_lorentz_tmp
+
+		vx_lorentz[*,i]	= x_lorentz_tmp
+		vy_lorentz[*,i]	= y_lorentz_tmp
+		vz_lorentz[*,i]	= z_lorentz_tmp
 
 		vPer[*,i]	= vPerTrack
 		vPar[*,i]	= vParTrack
@@ -137,11 +160,15 @@ pro beam_injection
 	red	= transpose ( ct12[12*16-1,*] )
 	blue	= transpose ( ct12[8*16-1,*] )
 	green	= transpose ( ct12[1*16-1,*] )
-	
-	iPlot, x_gc[*,0], y_gc[*,0], z_gc[*,0], $
+
+	x_plot	= x_lorentz
+	y_plot	= y_lorentz
+	z_plot	= z_lorentz
+
+	iPlot, x_plot[*,0], y_plot[*,0], z_plot[*,0], $
 		rgb_table = 3, $
 		vert = 255-fIndGen(nSteps)/nSteps*255, $
-		thick = new_E[0] / 1e3 / 250, $
+		thick = 2, $
 		/zoom_on_resize, $
 		/iso, $
 		trans = 50
@@ -175,10 +202,10 @@ pro beam_injection
 
 	for i=1,nP-1 do begin
 
-		iPlot, x_gc[*,i], y_gc[*,i], z_gc[*,i], $
+		iPlot, x_plot[*,i], y_plot[*,i], z_plot[*,i], $
 			rgb_table = 3, $
 			vert = 255-fIndGen(nSteps)/nSteps*255, $
-			thick = new_E[i] / 1e3 / 250, $
+			thick = 2, $
 			/over, $
 			trans = 50
 	
@@ -190,49 +217,36 @@ pro beam_injection
 	nCdf_control, id, /fill
 
 	tDim_id	= nCdf_dimDef ( id, 'time', nSteps )
-	nDim_id	= nCdf_dimDef ( id, 'nP', nP )
+	nPDim_id	= nCdf_dimDef ( id, 'nP', nP )
+	xyzDim_id	= nCdf_dimDef ( id, 'xyz', 3 )	
 
 	t_id	= nCdf_varDef ( id, 'time', [tDim_id], /float )
 
-	xgc_id	= nCdf_varDef ( id, 'xgc', [tDim_id,nDim_id], /float )
-	ygc_id	= nCdf_varDef ( id, 'ygc', [tDim_id,nDim_id], /float )
-	zgc_id	= nCdf_varDef ( id, 'zgc', [tDim_id,nDim_id], /float )
+	position_id	= nCdf_varDef ( id, 'position', [tDim_id,nPDim_id,xyzDim_id], /float )
+	velocity_id	= nCdf_varDef ( id, 'velocity', [tDim_id,nPDim_id,xyzDim_id], /float )
 
-	vPer_id	= nCdf_varDef ( id, 'vPer', [tDim_id,nDim_id], /float )
-	vPar_id	= nCdf_varDef ( id, 'vPar', [tDim_id,nDim_id], /float )
-
-	wall_id	= nCdf_varDef ( id, 'wall', [nDim_id], /short )
-	neutral_id	= nCdf_varDef ( id, 'neutral', [tDim_id,nDim_id], /short )
+	wall_id	= nCdf_varDef ( id, 'wall', [nPDim_id], /short )
+	neutral_id	= nCdf_varDef ( id, 'neutral', [tDim_id,nPDim_id], /short )
 
 	nCdf_attPut, id, t_id, 'units', 's'
 
-	nCdf_attPut, id, xgc_id, 'units', 'm'
-	nCdf_attPut, id, ygc_id, 'units', 'm'
-	nCdf_attPut, id, zgc_id, 'units', 'm'
+	nCdf_attPut, id, position_id, 'units', 'm'
+	nCdf_attPut, id, position_id, 'long_name', 'position in cartesian (x,y,z)'
 
-	nCdf_attPut, id, xgc_id, 'long_name', 'x position'
-	nCdf_attPut, id, ygc_id, 'long_name', 'y position'
-	nCdf_attPut, id, zgc_id, 'long_name', 'z position'
-
-	nCdf_attPut, id, vPer_id, 'units', 'm/s'
-	nCdf_attPut, id, vPar_id, 'units', 'm/s'
-	
-	nCdf_attPut, id, vPer_id, 'long_name', 'Perpendicular velocity'
-	nCdf_attPut, id, vPar_id, 'long_name', 'Parallel velocity'
+	nCdf_attPut, id, velocity_id, 'units', 'm/s'
+	nCdf_attPut, id, velocity_id, 'long_name', 'velocity in cartesian (vx, vy, vz)'
 
 	nCdf_attPut, id, neutral_id, 'long_name', 'Neutral status, i.e., does the particle feel the B field[0] or not[1]'
-	nCdf_attPut, id, wall_id, 'long_name', 'Wall status, i.e., does the particle hit the wall[1] or not[0]'
+	nCdf_attPut, id, wall_id, 'long_name', 'Wall status, i.e., does the particle hit the wall[1] or not[0] at some point during its orbit'
 
-	nCdf_attPut, id, /global, 'Title', 'ITER test particle trajectory data'
+	nCdf_attPut, id, /global, 'Title', 'Test particle trajectory data'
+	nCdf_attPut, id, /global, 'green_particle_data', 'green_particle_data'
 
 	nCdf_control, id, /enDef
 
-	nCdf_varPut, id, xgc_id, x_gc
-	nCdf_varPut, id, ygc_id, y_gc
-	nCdf_varPut, id, zgc_id, z_gc
+	nCdf_varPut, id, position_id, [[[x_lorentz]],[[y_lorentz]],[[z_lorentz]]]
 
-	nCdf_varPut, id, vPer_id, vPer 
-	nCdf_varPut, id, vPar_id, vPar
+	nCdf_varPut, id, velocity_id, [[[vx_lorentz]] , [[vy_lorentz]], [[vz_lorentz]]]
 
 	nCdf_varPut, id, t_id, time
 

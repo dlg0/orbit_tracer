@@ -128,6 +128,8 @@ pro lorentz_plot, $
 	rr_cyl = rr_cyl, $
 	nSteps = nSteps, $
 	x_gc = x_gc, y_gc = y_gc, z_gc = z_gc, $
+	x_lorentz = x_lorentz, y_lorentz = y_lorentz, z_lorentz = z_lorentz, $
+	vx_lorentz = vx_lorentz, vy_lorentz = vy_lorentz, vz_lorentz = vz_lorentz, $
 	dt = dt, $
 	delay = delay, $
 	match = match, $
@@ -138,7 +140,8 @@ pro lorentz_plot, $
 	bStruct = bStruct, $
 	eqdsk = eqdsk, $
 	mass = mi, $
-	q = q
+	q = q, $
+	lorentz = lorentz
 
 	if not keyword_set ( vv_cyl ) then begin	
 		r   = 2.1
@@ -415,6 +418,10 @@ pro lorentz_plot, $
 		x_lorentz	= rr_car_array[*,0]
 		y_lorentz	= rr_car_array[*,1]
 		z_lorentz	= rr_car_array[*,2]
+
+		vx_lorentz	= vv_car_array[*,0]
+		vy_lorentz	= vv_car_array[*,1]
+		vz_lorentz	= vv_car_array[*,2]
 
 	endif
 	
