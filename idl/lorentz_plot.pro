@@ -132,6 +132,7 @@ pro lorentz_plot, $
 	vx_lorentz = vx_lorentz, vy_lorentz = vy_lorentz, vz_lorentz = vz_lorentz, $
 	dt = dt, $
 	delay = delay, $
+	distance = distance, $
 	match = match, $
 	fieldLine = fieldLine, $
 	neutralTrack = neutralTrack, $
@@ -141,20 +142,30 @@ pro lorentz_plot, $
 	eqdsk = eqdsk, $
 	mass = mi, $
 	q = q, $
-	lorentz = lorentz
+	lorentz = lorentz, $
+	guiding = guiding, $
+	vPerIn = vPerIn, vParIn = vParIn, $
+	pitchScatter = pitchScatter
 
-	if not keyword_set ( vv_cyl ) then begin	
-		r   = 2.1
-		z   = 0.0 
-		phi	= 0.0
-		
-		vR   	= 0e6
-		vz    	= 0e6
-		vPhi	= 5e6 
+	if keyword_set ( distance ) then begin
+		distance_ = distance
+	endif else begin
+		distance = 0
+	endelse
+	
+	if not keyword_set ( vv_cyl ) then vv_cyl = [[0.0],[0.0],[0.0]]
+	;if not keyword_set ( vv_cyl ) then begin	
+	;	r   = 2.1
+	;	z   = 0.0 
+	;	phi	= 0.0
+	;	
+	;	vR   	= 0e6
+	;	vz    	= 0e6
+	;	vPhi	= 5e6 
 
-		rr_cyl	= transpose ( [ R, phi, z ] )
-		vv_cyl	= transpose ( [ vR, vPhi, vz ] )
-	endif
+	;	rr_cyl	= transpose ( [ R, phi, z ] )
+	;	vv_cyl	= transpose ( [ vR, vPhi, vz ] )
+	;endif
 
 	cyl2car	=	[	[ cos ( rr_cyl[1] ), sin ( rr_cyl[1] ), 0 ], $
 					[ -sin ( rr_cyl[1] ), cos ( rr_cyl[1] ), 0 ], $
@@ -173,10 +184,9 @@ pro lorentz_plot, $
 	vv_car_start	= vv_car
 	vv_cyl_start	= vv_cyl
  
-
 	vMag	= sqrt ( vv_cyl[0]^2 + vv_cyl[1]^2 + vv_cyl[2]^2 )
 	en_	= mi * vMag^2 / 2.0 / 1.602e-19 * 1e-3; [keV]
-	print, en_, 'keV';, rr_cyl[*], vv_cyl[*]
+	;print, en_, 'keV';, rr_cyl[*], vv_cyl[*]
 	
 	if not keyword_set ( dt ) then dt = 0.01e-7 
 	if not keyword_set ( nSteps ) then nSteps = 2000
@@ -198,9 +208,11 @@ pro lorentz_plot, $
 
 		for i = 0, nSteps - 2 do begin
 
-			if dt * i lt delay then begin
+			;if dt * i lt delay then begin
+			if distance gt 0 then begin
 
 				rr_car	= rr_car + vv_car * dt 
+				distance = distance - vMag * dt
 
 			endif else begin
 
@@ -288,6 +300,9 @@ pro lorentz_plot, $
 	
 	endelse
 
+	if keyword_set ( vPerIn ) then vPer = vPerIn
+	if keyword_set ( vParIn ) then vPar = vParIn
+
 
 	; Trace field line for comparison
 	if keyword_set ( fieldLine ) then begin
@@ -324,92 +339,140 @@ pro lorentz_plot, $
 	endif
 
 
-	;	GC integration
+	if keyword_set ( guiding ) then begin
 
-	bHere   = dlg_interpB ( pos, bStruct, bMag = bMag )
-	u   = mi * vPer^2 / ( 2.0 * bMag )
+		;	GC integration
 
-	rTrack	= fltArr ( nSteps )
-	phiTrack	= fltArr ( nSteps )
-	zTrack	= fltArr ( nSteps )
-	vPerTrack	= fltArr ( nSteps )
-	vParTrack	= fltArr ( nSteps )
+		bHere   = dlg_interpB ( pos, bStruct, bMag = bMag )
+		u   = mi * vPer^2 / ( 2.0 * bMag )
 
-	neutralTrack	= intArr ( nSteps )
-	tTrack	= fltArr ( nSteps )
+		rTrack	= fltArr ( nSteps )
+		phiTrack	= fltArr ( nSteps )
+		zTrack	= fltArr ( nSteps )
+		vPerTrack	= fltArr ( nSteps )
+		vParTrack	= fltArr ( nSteps )
 
-	rTrack[0]  	= pos[0]
-	phiTrack[0] 	= pos[1]
-	zTrack[0]  	= pos[2] 
-	vPerTrack[0]  	= vPer
-	vParTrack[0]   = vPar
-	neutralTrack[0]	= 1
-	tTrack[0]	= 0
+		neutralTrack	= intArr ( nSteps )
+		tTrack	= fltArr ( nSteps )
 
-	rr_car	= rr_car_start
-	vv_car	= vv_car_start
+		rTrack[0]  	= pos[0]
+		phiTrack[0] 	= pos[1]
+		zTrack[0]  	= pos[2] 
+		vPerTrack[0]  	= vPer
+		vParTrack[0]   = vPar
+		neutralTrack[0]	= 1
+		tTrack[0]	= 0
+
+		rr_car	= rr_car_start
+		vv_car	= vv_car_start
+
+		if keyword_set ( distance ) then distance = distance_
+
+		stillIn = 1
+		for i = 0, nSteps - 2 do begin
+			
+			;if dt * i lt delay then neutral = 1 else neutral = 0
+			if distance gt 0 then neutral = 1 else neutral = 0
+			if neutral eq 1 then begin
+
+				rr_car	= rr_car + vv_car * dt 
+				rr_cyl	= [ [ sqrt ( rr_car[0]^2+rr_car[1]^2 ) ], $
+					[ aTan ( rr_car[1], rr_car[0] ) ], $
+					[ rr_car[2] ] ]
+
+				pos	= transpose ( rr_cyl )
+
+				bHere_gc   = dlg_interpB ( pos, bStruct, bMag = bMag_gc )
+
+				vPar	= -vv_cyl_start # bHere_gc / bMag_gc
+				vPer	= sqrt ( vMag^2 - vPar^2 )
+
+				bHere   = dlg_interpB ( pos, bStruct, bMag = bMag )
+				u   = mi * vPer^2 / ( 2.0 * bMag )
+
+				distance = distance - vMag * dt
+
+				if distance le 0 then begin
+
+					if keyword_set ( pitchScatter ) then begin
+
+						; only changing vper here since i want an artifically
+						; large scatter but also keep the particles headed in the
+						; same direction relative to the field.
+
+						vParBak	= vPar
+						vMag	= sqrt ( vPer^2 + vPar^2 )
+						pitch	= !pi-aTan ( vPer, vPar )
+
+						pitch	= pitch + pitchScatter
+
+						vPar	= -cos ( pitch ) * vMag
+						vPer	= sqrt ( vMag^2 - vPar^2 )
+						vPar = vParBak
 	
-	for i = 0, nSteps - 2 do begin
- 
-		if dt * i lt delay then neutral = 1 else neutral = 0
-		if neutral eq 1 then begin
+					endif
 
-			rr_car	= rr_car + vv_car * dt 
-			rr_cyl	= [ [ sqrt ( rr_car[0]^2+rr_car[1]^2 ) ], $
-				[ aTan ( rr_car[1], rr_car[0] ) ], $
-				[ rr_car[2] ] ]
+				endif
 
-			pos	= transpose ( rr_cyl )
+			endif else begin
 
-			bHere_gc   = dlg_interpB ( pos, bStruct, bMag = bMag_gc )
-
-			vPar	= vv_cyl_start # bHere_gc / bMag_gc
-			vPer	= sqrt ( vMag^2 - vPar^2 )
-
-			bHere   = dlg_interpB ( pos, bStruct, bMag = bMag )
-			u   = mi * vPer^2 / ( 2.0 * bMag )
-
-		endif else begin
-
-	    	vPer   = dlg_vPer ( pos, u, bStruct ) 
-	    	vgc = dlg_gc_velocity ( vPer, vPar, pos, bStruct )
-	    	k1_vPar   = dt * dlg_vPar ( pos, u, bStruct ) 
-	    	k1_vgc  = dt * vgc
-	
-	    	vPer   = dlg_vPer ( pos + k1_vgc / 2.0, u, bStruct ) 
-	    	vgc = dlg_gc_velocity ( vPer, vPar + k1_vPar / 2.0, pos + k1_vgc / 2.0, bStruct )
-	    	k2_vPar   = dt * dlg_vPar ( pos + k1_vgc / 2.0, u, bStruct ) 
-	    	k2_vgc  = dt * vgc
- 
-	    	vPer   = dlg_vPer ( pos + k2_vgc / 2.0, u, bStruct ) 
-	    	vgc = dlg_gc_velocity ( vPer, vPar + k2_vPar / 2.0, pos + k2_vgc / 2.0, bStruct )
-	    	k3_vPar   = dt * dlg_vPar ( pos + k2_vgc / 2.0, u, bStruct ) 
-	    	k3_vgc  = dt * vgc
-
-	    	vPer   = dlg_vPer ( pos + k3_vgc, u, bStruct ) 
-	    	vgc = dlg_gc_velocity ( vPer, vPar + k3_vPar, pos + k3_vgc, bStruct )
-	    	k4_vPar   = dt * dlg_vPar ( pos + k3_vgc, u, bStruct ) 
-	    	k4_vgc  = dt * vgc
-	
-	    	vPar    = vPar + ( k1_vPar + 2.0 * k2_vPar + 2.0 * k3_vPar + k4_vPar ) / 6.0
-	    	pos   = pos + ( k1_vgc + 2.0 * k2_vgc + 2.0 * k3_vgc + k4_vgc ) / 6.0
-
-		endelse
-	
-		stillIn	= dlg_checkIn ( pos, bStruct )
-		if stillIn eq 0 and dt * i gt delay then div = 0 else div = 1
+		    	vPer   = dlg_vPer ( pos, u, bStruct ) 
+		    	vgc = dlg_gc_velocity ( vPer, vPar, pos, bStruct )
+		    	k1_vPar   = dt * dlg_vPar ( pos, u, bStruct ) 
+		    	k1_vgc  = dt * vgc
 		
-		rTrack[i+1]  = pos[0] / div 
-		phiTrack[i+1]	= pos[1] / div 
-	    zTrack[i+1]  = pos[2] / div 
+		    	vPer   = dlg_vPer ( pos + k1_vgc / 2.0, u, bStruct ) 
+		    	vgc = dlg_gc_velocity ( vPer, vPar + k1_vPar / 2.0, pos + k1_vgc / 2.0, bStruct )
+		    	k2_vPar   = dt * dlg_vPar ( pos + k1_vgc / 2.0, u, bStruct ) 
+		    	k2_vgc  = dt * vgc
+ 
+		    	vPer   = dlg_vPer ( pos + k2_vgc / 2.0, u, bStruct ) 
+		    	vgc = dlg_gc_velocity ( vPer, vPar + k2_vPar / 2.0, pos + k2_vgc / 2.0, bStruct )
+		    	k3_vPar   = dt * dlg_vPar ( pos + k2_vgc / 2.0, u, bStruct ) 
+		    	k3_vgc  = dt * vgc
 
-	    vPerTrack[i+1]  = vPer / div 
-	    vParTrack[i+1]   = vPar / div 
+		    	vPer   = dlg_vPer ( pos + k3_vgc, u, bStruct ) 
+		    	vgc = dlg_gc_velocity ( vPer, vPar + k3_vPar, pos + k3_vgc, bStruct )
+		    	k4_vPar   = dt * dlg_vPar ( pos + k3_vgc, u, bStruct ) 
+		    	k4_vgc  = dt * vgc
+		
+		    	vPar    = vPar + ( k1_vPar + 2.0 * k2_vPar + 2.0 * k3_vPar + k4_vPar ) / 6.0
+		    	pos   = pos + ( k1_vgc + 2.0 * k2_vgc + 2.0 * k3_vgc + k4_vgc ) / 6.0
 
-		neutralTrack[i+1]	= neutral / div 
-		tTrack[i+1]	= dt * i / div 
-	
-	endfor
+			endelse
+		
+			stillIn	= dlg_checkIn ( pos, bStruct )
+			;if stillIn eq 0 and dt * i gt delay then div = 0 else div = 1
+			;if stillIn eq 0 and distance le 0 then div = 0 else div = 1
+			;
+			rTrack[i+1]  = pos[0] ;/ div 
+			phiTrack[i+1]	= pos[1] ;/ div 
+		    zTrack[i+1]  = pos[2] ;/ div 
+
+		    vPerTrack[i+1]  = vPer ;/ div 
+		    vParTrack[i+1]   = vPar ;/ div 
+
+			neutralTrack[i+1]	= neutral ;/ div 
+			tTrack[i+1]	= dt * i ;/ div 
+
+			if stillIn eq 0 and distance le 0 then return
+		
+		endfor
+
+		if i lt nSteps-2 then begin
+			
+			NaN	= sqrt ( -1 )
+			rTrack[i:*]	= NaN
+			phiTrack[i:*]	= NaN
+			zTrack[i:*]	= NaN
+			vPerTrack[i:*]	= NaN
+			vParTrack[i:*]	= NaN
+			neutralTrack[i:*]	= NaN
+			tTrack[i:*]	= NaN
+
+		endif
+
+	endif
 
 	;	convert cylindrical coords to cartesian for plotting
 
@@ -425,9 +488,13 @@ pro lorentz_plot, $
 
 	endif
 	
-	x_gc	= rTrack * cos ( phiTrack )
-	y_gc	= rTrack * sin ( phiTrack )
-	z_gc	= zTrack
+	if keyword_set ( guiding ) then begin
+	
+		x_gc	= rTrack * cos ( phiTrack )
+		y_gc	= rTrack * sin ( phiTrack )
+		z_gc	= zTrack
+
+	endif 
 
 	if keyword_set ( fieldLine ) then begin
 	
