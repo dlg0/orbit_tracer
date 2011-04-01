@@ -129,10 +129,11 @@ function dlg_gc_velocity, vPer, vPar, r, bStruct
 
 	idx1 = ( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0)
 	idx2 = ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0)
-	print, 'Idxs: ',idx1,idx2,(bStruct.br)[idx1,idx2], (bStruct.bphi)[idx1,idx2]
 
+    print, 'Pos:  ', r[0], r[1], r[2]
+	print, 'Idxs: ',idx1,idx2,(bStruct.br)[idx1,idx2], (bStruct.bphi)[idx1,idx2]
 	print, 'BVal: ', b_r, b_phi, b_z
-	print, 'Unit: ', unitb_r, unitb_phi, unitb_z
+	print, 'Unit: ', unitb[0], unitb[1], unitb[2]
 	print, 'Curv: ', curv_r, curv_phi, curv_z
 	print, 'Grad: ', grad_r, grad_phi, grad_z
 
@@ -172,14 +173,6 @@ pro lorentz_plot, $
 	pitchScatter = pitchScatter
 
 
-	eqdsk_fName	= '../eqdsk/g120740.00275.EFIT02.mds.uncorrected.qscale_1.00000'
-	eqdsk_fName	= '../eqdsk/g129x129_1051206002.01120'
-	eqdsk_fName	= '../eqdsk/eqdsk.122993'
-	eqdsk_fName	= '/home/dg6/scratch/sMC+rf/test_qlSerial/data/g129x129_1051206002.01120.cmod'
-
-	;eqdsk_fName	= '../eqdsk/JET_75500B19_trxpl_15_plasma_state.geq'
-	;eqdsk_fName	= '../eqdsk/Scen4_bn2.57_129x129'
-
 	if keyword_set ( distance ) then begin
 		distance_ = distance
 	endif else begin
@@ -200,6 +193,7 @@ pro lorentz_plot, $
 	;	vv_cyl	= transpose ( [ vR, vPhi, vz ] )
 	;endif
 
+
 	cyl2car	=	[	[ cos ( rr_cyl[1] ), sin ( rr_cyl[1] ), 0 ], $
 					[ -sin ( rr_cyl[1] ), cos ( rr_cyl[1] ), 0 ], $
 					[ 0, 0, 1 ] ]
@@ -209,23 +203,11 @@ pro lorentz_plot, $
 	;eqdsk.bR	= eqdsk.bR*0
 	;eqdsk.bz	= eqdsk.bz*0
 	;eqdsk.bPhi	= -eqdsk.bPhi
-	eqdsk.bMag	= sqrt ( eqdsk.bR^2+eqdsk.bPhi^2+eqdsk.bz^2)
+	;eqdsk.bMag	= sqrt ( eqdsk.bR^2+eqdsk.bPhi^2+eqdsk.bz^2)
 
-	q	= 1.602e-19
-	mi	= 1.672e-27 
+	;q	= 1.602e-19
+	;mi	= 1.672e-27 
 	
-	r   = 0.696515 
-	phi	= 0.0
-	z   =-0.0242857 
-
-	vR   	= 0e6
-	vz    	= 0e6
-	vPhi	= 228595.0 
-
-	vR = 21933.6
-	vPhi = -226865
-	vz = 17501.1
-
 	vv_car	= cyl2car ## vv_cyl 
 
 	rr_car	= [ [ rr_cyl[0] * cos ( rr_cyl[1] ) ], $
