@@ -130,6 +130,28 @@ function dlg_gc_velocity, vPer, vPar, r, bStruct
         ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
 		cubic = -0.5 ) 
 
+    b_R = interpolate ( bStruct.bR, $
+			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
+        ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
+		cubic = -0.5 ) 
+    b_phi = interpolate ( bStruct.bphi, $
+			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
+        ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
+		cubic = -0.5 ) 
+    b_z = interpolate ( bStruct.bz, $
+			( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0), $
+        ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0), $
+		cubic = -0.5 ) 
+
+	idx1 = ( r[0] - bStruct.rleft ) / bStruct.rdim * (bStruct.nW-1.0)
+	idx2 = ( r[2] - min ( bStruct.z ) ) / bStruct.zdim * (bStruct.nH-1.0)
+	print, 'Idxs: ',idx1,idx2,(bStruct.br)[idx1,idx2], (bStruct.bphi)[idx1,idx2]
+
+	print, 'BVal: ', b_r, b_phi, b_z
+	print, 'Unit: ', unitb_r, unitb_phi, unitb_z
+	print, 'Curv: ', curv_r, curv_phi, curv_z
+	print, 'Grad: ', grad_r, grad_phi, grad_z
+
     vgc_R   = vPar * unitb_R + vPer^2 * grad_R + vPar^2 * curv_R 
     vgc_phi   = vPar * unitb_phi + vPer^2 * grad_phi + vPar^2 * curv_phi
     vgc_z   = vPar * unitb_z + vPer^2 * grad_z + vPar^2 * curv_z
@@ -145,26 +167,31 @@ pro lorentz_plot, $
 	eqdsk_fName	= '../eqdsk/g120740.00275.EFIT02.mds.uncorrected.qscale_1.00000'
 	eqdsk_fName	= '../eqdsk/g129x129_1051206002.01120'
 	eqdsk_fName	= '../eqdsk/eqdsk.122993'
+	eqdsk_fName	= '/home/dg6/scratch/sMC+rf/test_qlSerial/data/g129x129_1051206002.01120.cmod'
+
 	;eqdsk_fName	= '../eqdsk/JET_75500B19_trxpl_15_plasma_state.geq'
 	;eqdsk_fName	= '../eqdsk/Scen4_bn2.57_129x129'
 
 	eqdsk = readGEqdsk ( eqdsk_fName )	
 
-	eqdsk.bR	= eqdsk.bR*0
-	eqdsk.bz	= eqdsk.bz*0
-	eqdsk.bPhi	= -eqdsk.bPhi
+	;eqdsk.bR	= eqdsk.bR*0
+	;eqdsk.bz	= eqdsk.bz*0
+	;eqdsk.bPhi	= -eqdsk.bPhi
 	eqdsk.bMag	= sqrt ( eqdsk.bR^2+eqdsk.bPhi^2+eqdsk.bz^2)
 
 	q	= 1.602e-19
 	mi	= 1.672e-27 
 	
-	r   = 2.1
-	z   = 0.0 
+	r   = 0.696515 
 	phi	= 0.0
-	
+	z   =-0.0242857 
+
 	vR   	= 0e6
 	vz    	= 0e6
-	vPhi	= 5e6 
+	vPhi	= 228595.0 
+vR = 21933.6
+vPhi = -226865
+vz = 17501.1
 
 	vMag	= sqrt ( vR^2 + vz^2 + vPhi^2 )
 	en_	= mi * vMag^2 / 2.0 / 1.602e-19 * 1e-3; [keV]
@@ -473,7 +500,8 @@ stop
 	zTrack  	= pos[2] 
 	vPerTrack  	= vPer
 	vParTrack   = vPar
-	
+
+	nSteps = 10		
 	for i = 0, nSteps - 2 do begin
 	
 	    vPer   = dlg_vPer ( pos, u, bStruct ) 
