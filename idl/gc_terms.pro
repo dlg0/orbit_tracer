@@ -1,14 +1,17 @@
 pro gc_terms, amu, Z, $
-    eqdsk = eqdsk, $
+	eqdsk = eqdsk, $
 	gc_struct = gc_struct, $
 	curv = curv, $
 	grad = grad, $
-    ar2InputFileName = ar2InputFileName, $
-    oned = oned
+	ar2InputFileName = ar2InputFileName, $
+	oned = oned, $
+	cartesian_offset = _cartesian_offset
+
+	if keyword_set(_cartesian_offset) then cartesian_offset = _cartesian_offset else cartesian_offset = 0
 
     @constants
     q = Z * _e
-    m = amu * mi
+    m = amu * _amu
 
     if keyword_set(eqdsk) then begin
 
@@ -258,7 +261,7 @@ pro gc_terms, amu, Z, $
 
 	        nCdf_control, nc_id, /enDef
 	        
-	        nCdf_varPut, nc_id, r_id, r
+	        nCdf_varPut, nc_id, r_id, r - cartesian_offset
 	        nCdf_varPut, nc_id, z_id, z
 	        nCdf_varPut, nc_id, curv_r_id, curv_r 
 	        nCdf_varPut, nc_id, curv_t_id, curv_t 
